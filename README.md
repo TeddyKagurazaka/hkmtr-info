@@ -4,9 +4,11 @@
 出发和到达站支持使用上水/SHS/sheungshui的格式填写名称 填写简体会自动转换为繁体
 
 Q:點解文字系廣東話？
+
 A:嚟香港點解唔用廣東話？
 
-类似于
+
+類似於
 ```txt
 [Hong Kong MTR車票價格]
 由 [東鐵綫] 上水 (Sheung Shui) 去 [觀塘綫] 旺角 (Mong Kok) 嘅車票價格：
@@ -65,4 +67,64 @@ A:嚟香港點解唔用廣東話？
 在鑽石山2號月台往黃埔方向轉車
 ```
 
-欢迎除了不要脸天天阴阳怪气别人还天天照抄别人创意的开发者以外的其他任何开发者使用 反正也是去香港出勤的时候为了每天卡点尾班车的时候脑抽的产物(
+如果直接調用query_ticket_price時 可以使用lang="E"切換為英文模式
+
+類似於
+```txt
+[Hong Kong MTR Ticket Prices]
+Ticket prices from [東鐵綫] 上水 (Sheung Shui) to [觀塘綫] 旺角 (Mong Kok):
+
+Please note that the ticket prices only apply to Octopus card or QR code entry, and do not include the price of single journey tickets.
+
+First Train Time: 05:40
+First Train Route: 上水 (Sheung Shui) > 東鐵綫 (East Rail Line) > 九龍塘 (Kowloon Tong) > 觀塘綫 (Kwun Tong Line) > 旺角 (Mong Kok)
+Last Train Time: 00:04
+Last Train Route: 上水 (Sheung Shui) > 東鐵綫 (East Rail Line) > 九龍塘 (Kowloon Tong) > 觀塘綫 (Kwun Tong Line) > 旺角 (Mong Kok)
+The time shown is the scheduled departure time from the platform.  Passengers for the last train should enter the station at least 5 minutes before the scheduled departure time.
+Station Opening Hours: 05:30-01:17
+Passengers taking the first/last train must use the transfer routes listed on this page, as the recommended routes in the travel guide may differ.
+
+Real-time departure times from [東鐵綫] 上水 (Sheung Shui):
+Line: 東鐵綫 (East Rail Line)
+Real-time Arrivals (Up):
+Time: 2023-07-22 11:00:27, Destination: Lo Wu, Platform: 1
+Time: 2023-07-22 11:04:27, Destination: Lok Ma Chau, Platform: 1
+Time: 2023-07-22 11:08:27, Destination: Lo Wu, Platform: 1
+Time: 2023-07-22 11:12:27, Destination: Lo Wu, Platform: 1
+Real-time Arrivals (Down):
+Time: 2023-07-22 11:01:27, Destination: Admiralty, Platform: 2
+Time: 2023-07-22 11:06:27, Destination: Admiralty, Platform: 2
+Time: 2023-07-22 11:10:27, Destination: Admiralty, Platform: 2
+Time: 2023-07-22 11:14:27, Destination: Admiralty, Platform: 2
+
+
+Car Type: Standard
+Route Name: Route 1
+Adult Price: 13.2
+Student Price: 6.9
+Travel Time: 39 minutes
+Route:
+Board at Sheung Shui Platform 2 towards Admiralty
+Interchange at Kowloon Tong Platform 2 towards Whampoa
+
+Car Type: Standard
+Route Name: Route 2
+Adult Price: 13.2
+Student Price: 6.9
+Travel Time: 47 minutes
+Route:
+Board at Sheung Shui Platform 2 towards Admiralty
+Interchange at Hung Hom Platform 2 towards Wu Kai Sha
+Interchange at Ho Man Tin Platform 1 towards Tiu Keng Leng
+
+Car Type: Standard
+Route Name: Route 3
+Adult Price: 13.2
+Student Price: 6.9
+Travel Time: 51 minutes
+Route:
+Board at Sheung Shui Platform 2 towards Admiralty
+Interchange at Tai Wai Platform 3 towards Tuen Mun
+Interchange at Diamond Hill Platform 2 towards Whampoa
+```
+
