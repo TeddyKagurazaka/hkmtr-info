@@ -37,7 +37,9 @@ from io import StringIO
 from data_source.ApiException import ApiException
 
 def get_mtr_stations():
-    response = requests.get("https://www.mtr.com.hk/st/data/fcdata_json.php")
+    url = 'https://www.mtr.com.hk/st/data/fcdata_json.php'
+    print("Updating mtr_stations.json from %s" % url)
+    response = requests.get(url)
     data = response.json()
 
     stations = data["faresaver"]['facilities']
