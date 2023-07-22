@@ -72,10 +72,13 @@ def convert_to_json(json_file):
     with open(json_file, 'w', encoding='utf-8') as file:
         json.dump(json_data, file, ensure_ascii=False, indent=4)
 
-mtr_stations = get_mtr_stations()
-
-with open("mtr_stations.json", "w", encoding="utf-8") as f:
-    json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
+try:
+    with open("mtr_stations.json", "r", encoding="utf-8") as f:
+        mtr_stations = json.load(f)
+except:
+    mtr_stations = get_mtr_stations()
+    with open("mtr_stations.json", "w", encoding="utf-8") as f:
+        json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
 
 try:
     with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
@@ -105,7 +108,7 @@ def get_station_id(station_name):
     #读取line_info 循环 检查Station Code是否有匹配的
     for station_dict in line_info:
         if station_dict['Station Code'].lower() == simplified_station_name or station_dict['English Name'].replace(" ", "").replace("-", "").lower() == simplified_station_name or station_dict['Chinese Name'].replace(" ", "").replace("-", "").lower() == simplified_station_name:
-            return str(station_dict['Station ID'])
+            return str(int(station_dict['Station ID']))
 
     return None
 
@@ -485,10 +488,26 @@ if __name__ == "__main__":
     from_station_name = args.from_station
     to_station_name = args.to_station
 
+
+
     # 更新车站信息
-    # url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
-    # json_file = 'mtr_lines_and_stations.json'
-    # convert_to_json(json_file)
+    mtr_stations = get_mtr_stations()
+    with open("mtr_stations.json", "w", encoding="utf-8") as f:
+        json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
+
+    url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
+    print(f'Updating mtr_lines_and_stations from {url}')
+    #下载文件
+    r = requests.get(url)
+    #将二进制文件转为字符串
+    data = str(r.content, encoding="utf-8")
+    #将字符串转为文件对象
+    with open('mtr_lines_and_stations.csv', 'w', encoding='utf-8') as f:
+        f.write(data)
+    json_file = 'mtr_lines_and_stations.json'
+    convert_to_json(json_file)
+    with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
+        line_info = json.load(f)
     # 查询车票价格
     output_text = query_ticket_price(from_station_name, to_station_name)
     print(output_text)
