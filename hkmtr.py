@@ -68,6 +68,16 @@ def convert_to_json(json_file):
     # 解析JSON数据
     json_data = json.loads(json_data)
 
+    filtered_json_data = []
+
+    for i in json_data:
+        if i['Line Code'] is not None:
+            i["Sequence"] = int(i["Sequence"])
+            i["Station ID"] = int(i["Station ID"])
+            filtered_json_data.append(i)
+
+
+    json_data = filtered_json_data
     # 将JSON数据保存到文件
     with open(json_file, 'w', encoding='utf-8') as file:
         json.dump(json_data, file, ensure_ascii=False, indent=4)
