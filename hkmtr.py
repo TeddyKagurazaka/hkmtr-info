@@ -55,15 +55,44 @@ def get_mtr_stations():
             station["LINE"]) if station["LINE"] else None
 
     return stations
+    
+def convert_to_json(json_file):
+    # 读取CSV内容
+    data = pd.read_csv('mtr_lines_and_stations.csv')
 
+    # 转换为JSON格式
+    json_data = data.to_json(orient='records')
+
+    # 解析JSON数据
+    json_data = json.loads(json_data)
+
+    # 将JSON数据保存到文件
+    with open(json_file, 'w', encoding='utf-8') as file:
+        json.dump(json_data, file, ensure_ascii=False, indent=4)
 
 mtr_stations = get_mtr_stations()
 
 with open("mtr_stations.json", "w", encoding="utf-8") as f:
     json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
 
-with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
-    line_info = json.load(f)
+try:
+    with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
+        line_info = json.load(f)
+#未加载成功时尝试从网上获取这个重新生成
+except:
+    url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
+    print(f'Updating mtr_lines_and_stations from {url}')
+    #下载文件
+    r = requests.get(url)
+    #将二进制文件转为字符串
+    data = str(r.content, encoding="utf-8")
+    #将字符串转为文件对象
+    with open('mtr_lines_and_stations.csv', 'w', encoding='utf-8') as f:
+        f.write(data)
+    json_file = 'mtr_lines_and_stations.json'
+    convert_to_json(json_file)
+    with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
+        line_info = json.load(f)
 
 def get_station_id(station_name):
     with open("mtr_stations.json", "r", encoding="utf-8") as f:
@@ -174,22 +203,6 @@ line_dict = {
     'TWL': "荃灣綫 (Tseun Wan Line)",
     'TML': "屯馬綫 (Tuen Ma Line)"
 }
-
-
-def convert_to_json(json_file):
-    # 读取CSV内容
-    data = pd.read_csv('mtr_lines_and_stations.csv')
-
-    # 转换为JSON格式
-    json_data = data.to_json(orient='records')
-
-    # 解析JSON数据
-    json_data = json.loads(json_data)
-
-    # 将JSON数据保存到文件
-    with open(json_file, 'w', encoding='utf-8') as file:
-        json.dump(json_data, file, ensure_ascii=False, indent=4)
-
 
 def query_specific_line(src,dst,time):
     result = src.split(" ", 1)[1]
@@ -366,7 +379,7 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
             output_text += f'末班車時間：{station_info["lastTrainTime"]["time"]}\n'
             output_text += '尾班車路綫: '
             output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"])
-            output_text += f'{station_info["firstLastTrainRemark"]}\n'
+            output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
             output_text += f'車站開放時間：{station_info["stationOpeningHours"]}\n'
             output_text += "乘搭首/尾班車的乘客必須使用本頁列明的轉乘路綫，因有關的轉乘路綫可能與行程指南所建議的路綫不同。\n\n"
 
@@ -380,7 +393,7 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
             output_text += f'Last Train Time: {station_info["lastTrainTime"]["time"]}\n'
             output_text += 'Last Train Route: '
             output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"])
-            output_text += f'{station_info["firstLastTrainRemark"]}\n'
+            output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
             output_text += f'Station Opening Hours: {station_info["stationOpeningHours"]}\n'
             output_text += "Passengers taking the first/last train must use the transfer routes listed on this page, as the recommended routes in the travel guide may differ.\n\n"
 
@@ -470,10 +483,10 @@ if __name__ == "__main__":
     from_station_name = args.from_station
     to_station_name = args.to_station
 
-    #更新车站信息
-    url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
-    json_file = 'mtr_lines_and_stations.json'
-    convert_to_json(json_file)
+    # 更新车站信息
+    # url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
+    # json_file = 'mtr_lines_and_stations.json'
+    # convert_to_json(json_file)
     # 查询车票价格
     output_text = query_ticket_price(from_station_name, to_station_name)
     print(output_text)
