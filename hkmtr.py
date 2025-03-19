@@ -389,9 +389,9 @@ def format_station_info_with_code(station_info):
     formatted_info = f"[{line}] {station_name_tc} ({station_name_en}) [{station_code}]"
     return formatted_info
 
-def query_ticket_price(from_station, to_station):
+def query_ticket_price(from_station, to_station, tg_inline_mode=False, lang="C"):
     ensure_data_files()  # 确保数据文件存在
-    return _query_ticket_price_internal(from_station, to_station)
+    return _query_ticket_price_internal(from_station, to_station, tg_inline_mode, lang)
 
 def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_mode=False, lang="C"):
     output_text = ""
@@ -752,5 +752,5 @@ if __name__ == "__main__":
     update_mtr_stations()
     update_mtr_line_info()
 
-    output = query_ticket_price(args.from_station, args.to_station)
+    output = query_ticket_price(args.from_station, args.to_station, lang="E")
     print(output)
