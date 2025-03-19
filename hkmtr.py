@@ -1,45 +1,75 @@
 import importlib
 import subprocess
+import os
 
-# Check if requests module is installed
-try:
-    importlib.import_module('requests')
-except ImportError:
-    print("requests module is not installed. Attempting to install...")
-    subprocess.check_call(['pip', 'install', 'requests'])
+# 自动尝试导入，如果失败自动安装
+def safe_import(module_name, package_name=None):
+    try:
+        return importlib.import_module(module_name)
+    except ImportError:
+        print(f"{module_name} 未安装，正在自动安装...")
+        subprocess.check_call(['pip', 'install', package_name or module_name])
+        return importlib.import_module(module_name)
 
-# Check if opencc-python-reimplemented module is installed
-try:
-    importlib.import_module('opencc')
-except ImportError:
-    print("opencc-python-reimplemented module is not installed. Attempting to install...")
-    subprocess.check_call(['pip', 'install', 'opencc-python-reimplemented'])
+# 使用 safe_import 导入常用模块
+requests = safe_import('requests')
+opencc = safe_import('opencc', 'opencc-python-reimplemented')
+pd = safe_import('pandas')
+bs4 = safe_import('bs4', 'beautifulsoup4')
+from bs4 import BeautifulSoup
 
-# Check if pandas module is installed
-try:
-    importlib.import_module('pandas')
-except ImportError:
-    print("pandas module is not installed. Attempting to install...")
-    subprocess.check_call(['pip', 'install', 'pandas'])
-
-
-
-import requests
 import json
 import html
 import argparse
-from opencc import OpenCC
-
-import pandas as pd
-
+from datetime import datetime, timedelta
 from io import StringIO
+from dotenv import load_dotenv
 
 from data_source.ApiException import ApiException
+from opencc import OpenCC
+
+# 读取环境变量
+load_dotenv()
+PROXY_URL = os.getenv("PROXY_URL")
+
+proxies = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else {}
+
+def update_mtr_stations():
+    # 下载并生成 mtr_stations.json
+    mtr_stations = get_mtr_stations()
+    with open("mtr_stations.json", "w", encoding="utf-8") as f:
+        json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
+
+def update_mtr_line_info():
+    url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
+    print(f'更新 mtr_lines_and_stations 文件: {url}')
+    r = requests.get(url)
+    with open('mtr_lines_and_stations.csv', 'w', encoding='utf-8') as f:
+        f.write(r.content.decode('utf-8'))
+    convert_to_json("mtr_lines_and_stations.json")
+
+DATA_FILES = {
+    "mtr_stations.json": update_mtr_stations,
+    "mtr_lines_and_stations.csv": update_mtr_line_info,
+    "mtr_lines_and_stations.json": update_mtr_line_info,
+}
+
+_data_checked = False
+
+def ensure_data_files():
+    global _data_checked
+    if _data_checked:
+        return
+    for file_name, updater in DATA_FILES.items():
+        if not os.path.exists(file_name):
+            print(f"{file_name} 缺失，正在自动更新...")
+            updater()
+    _data_checked = True
 
 def get_mtr_stations():
     url = 'https://www.mtr.com.hk/st/data/fcdata_json.php'
     print("Updating mtr_stations.json from %s" % url)
-    response = requests.get(url)
+    response = requests.get(url,proxies=proxies,timeout=10)
     data = response.json()
 
     stations = data["faresaver"]['facilities']
@@ -128,7 +158,7 @@ def get_ticket_price(from_station_id, to_station_id, lang="C"):
         raise ValueError("Invalid lang parameter. Only 'C' (Chinese) or 'E' (English) are allowed.")
     url = f"https://www.mtr.com.hk/share/customer/jp/api/HRRoutes/?o={from_station_id}&d={to_station_id}&lang={lang}"
     print(url)
-    response = requests.get(url)
+    response = requests.get(url,proxies=proxies,timeout=10)
     data = response.json()
 
     ticket_prices = []
@@ -253,7 +283,7 @@ def get_station_names(abbreviation, lang="EN"):
 def get_realtime_arrivals(line, station, lang="EN"):
     url = f"https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line={line}&sta={station}&lang={lang}"
     print(url)
-    response = requests.get(url)
+    response = requests.get(url,proxies=proxies,timeout=10)
     data = response.json()
 
     if response.status_code == 200:
@@ -339,13 +369,38 @@ def get_realtime_arrivals(line, station, lang="EN"):
             return "獲取實時數據時發生錯誤。"
         else:
             return "Error occurred while fetching real-time data."
+        
+def format_station_info_with_code(station_info):
+    line = station_info["LINE"]
+    station_name_tc = station_info["STATION_NAME_TC"]
+    station_name_en = station_info["STATION_NAME_EN"]
+    station_id = int(station_info["STATION_ID"])
 
+    # 从 line_info 找 station_code
+    station_code = None
+    for item in line_info:
+        if int(item["Station ID"]) == station_id:
+            station_code = item["Station Code"]
+            break
 
-def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False, lang="C"):
+    if not station_code:
+        station_code = str(station_id)  # 找不到就用ID代替
+
+    formatted_info = f"[{line}] {station_name_tc} ({station_name_en}) [{station_code}]"
+    return formatted_info
+
+def query_ticket_price(from_station, to_station):
+    ensure_data_files()  # 确保数据文件存在
+    return _query_ticket_price_internal(from_station, to_station)
+
+def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_mode=False, lang="C"):
     output_text = ""
     title_msg = ""
     from_station_id = get_station_id(from_station_name)
     to_station_id = get_station_id(to_station_name)
+    exchange_info = get_exchange_rate_info()  # 获取最新汇率和更新时间
+    hkd_to_rmb = exchange_info["hkd_to_rmb"]
+    rmb_to_hkd = exchange_info["rmb_to_hkd"]
 
     if from_station_id is None or to_station_id is None:
         traditional_from_station_name = convert_to_traditional_chinese(
@@ -378,16 +433,18 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
         elif lang == "E":
             output_text += '[Hong Kong MTR Ticket Prices]\n'
 
-        from_station_info = format_station_info(
-            get_station_info(from_station_id))
+        from_station_info = format_station_info(get_station_info(from_station_id))
 
         to_station_info = format_station_info(get_station_info(to_station_id))
 
+        from_station_info_display = format_station_info_with_code(get_station_info(from_station_id))
+        to_station_info_display = format_station_info_with_code(get_station_info(to_station_id))
 
         if lang == "C":
-            output_text += f"由 {from_station_info} 去 {to_station_info} 嘅車票價格：\n"
+            output_text += f"由 {from_station_info_display} 去 {to_station_info_display} 嘅車票價格：\n"
             title_msg += f"由 {from_station_info} 去 {to_station_info} 嘅車票價格"
-            output_text += '\n請留意，該車票價格僅計算使用八達通拍卡或使用乘車二維碼入閘嘅價格，唔包括購買單程票嘅價格。\n\n'
+            # output_text += '\n請留意，該車票價格僅計算使用八達通拍卡或使用乘車二維碼入閘嘅價格，唔包括購買單程票嘅價格。\n\n'
+
             output_text += f'首班車時間：{station_info["firstTrainTime"]["time"]}\n'
             output_text += '首班車路綫: '
             output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"])
@@ -399,9 +456,9 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
             output_text += "乘搭首/尾班車的乘客必須使用本頁列明的轉乘路綫，因有關的轉乘路綫可能與行程指南所建議的路綫不同。\n\n"
 
         elif lang == "E":
-            output_text += f"Ticket prices from {from_station_info} to {to_station_info}:\n"
+            output_text += f"Ticket prices from {from_station_info_display} to {to_station_info_display}:\n"
             title_msg += f"Ticket prices from {from_station_info} to {to_station_info}"
-            output_text += '\nPlease note that the ticket prices only apply to Octopus card or QR code entry, and do not include the price of single journey tickets.\n\n'
+            # output_text += '\nPlease note that the ticket prices only apply to Octopus card or QR code entry, and do not include the price of single journey tickets.\n\n'
             output_text += f'First Train Time: {station_info["firstTrainTime"]["time"]}\n'
             output_text += 'First Train Route: '
             output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"])
@@ -452,8 +509,10 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
                 elif fareTitle == 'firstClass':
                     output_text += f"\n車廂類型：头等\n"
                 output_text += f"路線名稱：{route_name}\n"
-                output_text += f"成人票價：{adult_price}\n"
-                output_text += f"學生票價：{student_price}\n"
+                # output_text += f"成人票價：{adult_price}\n"
+                output_text += format_adult_price_zh(adult_price, rmb_to_hkd, fareTitle) + "\n"
+                # output_text += f"學生票價：{student_price}\n"
+                output_text += format_student_price_zh(student_price) + "\n"
                 output_text += f"行車時間：{time}分鐘\n"
                 output_text += f"路線：\n"
                 for segment in path:
@@ -466,14 +525,22 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
                 elif fareTitle == 'firstClass':
                     output_text += f"\nCar Type: First Class\n"
                 output_text += f"Route Name: {route_name}\n"
-                output_text += f"Adult Price: {adult_price}\n"
-                output_text += f"Student Price: {student_price}\n"
+                # output_text += f"Adult Price: {adult_price}\n"
+                output_text += format_adult_price_en(adult_price, rmb_to_hkd, fareTitle) + "\n"
+                # output_text += f"Student Price: {student_price}\n"
+                output_text += format_student_price_en(student_price) + "\n"
                 output_text += f"Travel Time: {time} minutes\n"
                 output_text += f"Route:\n"
                 for segment in path:
                     link_text = segment.get('linkText')
                     if link_text is not None:
                         output_text += f"{link_text}\n"
+        #插入那堆文案
+        output_text += "\n\n"
+        if lang == "C":
+            output_text += get_common_notice_zh(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
+        elif lang == "E":
+            output_text += get_common_notice_en(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
 
         if tg_inline_mode:
             return output_text, title_msg
@@ -481,46 +548,209 @@ def query_ticket_price(from_station_name, to_station_name, tg_inline_mode=False,
             return output_text
 
 
-# 如果直接调用这个文件，就会执行下面的代码
+def fetch_exchange_rate_from_url(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    resp = requests.get(url, headers=headers,proxies=proxies, timeout=10)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    rate_tag = soup.find("p", class_="exchange-rate")
+    if not rate_tag:
+        raise Exception(f"無法從 {url} 解析出匯率")
+    rate_text = rate_tag.get_text().strip()
+    rate_value = rate_text.split(":")[-1].strip()
+    return float(rate_value)
+
+def get_exchange_rate_info(cache_file="octopus_exchange_rate.json"):
+    cache_data = None
+    if os.path.exists(cache_file):
+        with open(cache_file, "r", encoding="utf-8") as f:
+            cache_data = json.load(f)
+            cache_time = datetime.strptime(cache_data["fetch_time"], "%Y-%m-%d %H:%M:%S")
+            if datetime.now() - cache_time < timedelta(hours=12):
+                return cache_data
+    
+    try:
+        hkd_to_rmb = fetch_exchange_rate_from_url(
+            "https://www.octopuscards.com/onlineform/mot/exchange-rate/hkd-to-rmb/tc/enquiry.jsp"
+        )
+        rmb_to_hkd = fetch_exchange_rate_from_url(
+            "https://www.octopuscards.com/onlineform/mot/exchange-rate/rmb-to-hkd/tc/enquiry.jsp"
+        )
+        fetch_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        result = {
+            "hkd_to_rmb": hkd_to_rmb,
+            "rmb_to_hkd": rmb_to_hkd,
+            "fetch_time": fetch_time
+        }
+
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        return result
+
+    except Exception as e:
+        if cache_data:
+            print(f"獲取最新匯率失敗，已使用本地過期緩存（最後更新時間：{cache_data['fetch_time']}）")
+            return cache_data
+        else:
+            raise Exception(f"無法獲取最新匯率，且沒有本地緩存可用: {e}")
+
+def format_adult_price_zh(adult_price, rmb_to_hkd_rate, fare_title):
+    try:
+        # 尝试将成人票价转换为数字
+        price_float = float(adult_price)
+        
+        # 如果是浮动数字，按照汇率转换成人民币
+        rmb_price = round(price_float / rmb_to_hkd_rate, 2)
+        return f"成人票價：HK$ {adult_price} (CN¥{rmb_price})"
+    except ValueError:
+        # 如果无法转换为浮动数字（即可能是字符串或奇怪字符），直接返回原始票价
+        return f"成人票價：{adult_price}"
+
+def format_adult_price_en(adult_price, rmb_to_hkd_rate, fare_title):
+    try:
+        # 尝试将成人票价转换为数字
+        price_float = float(adult_price)
+        
+        # 如果是浮动数字，按照汇率转换成人民币
+        rmb_price = round(price_float / rmb_to_hkd_rate, 2)
+        return f"Adult Price: HK$ {adult_price} (Approx. CN¥{rmb_price})"
+    except ValueError:
+        # 如果无法转换为浮动数字（即可能是字符串或奇怪字符），直接返回原始票价
+        return f"Adult Price: {adult_price}"
+
+def format_student_price_zh(student_price):
+    try:
+        # 尝试将学生票价转换为数字
+        price_float = float(student_price)
+        
+        # 如果是浮动数字，直接返回港币票价
+        return f"學生票價：HK$ {student_price}"
+    except ValueError:
+        # 如果无法转换为浮动数字，直接返回原始票价（即可能是字符串或奇怪字符）
+        return f"學生票價：{student_price}"
+
+def format_student_price_en(student_price):
+    try:
+        # 尝试将学生票价转换为数字
+        price_float = float(student_price)
+        
+        # 如果是浮动数字，直接返回港币票价
+        return f"Student Price: HK$ {student_price}"
+    except ValueError:
+        # 如果无法转换为浮动数字，直接返回原始票价（即可能是字符串或奇怪字符）
+        return f"Student Price: {student_price}"
+
+
+def get_common_notice_zh(hkd_to_rmb, rmb_to_hkd, fetch_time):
+    return (
+        f"【票價適用及支付方式】\n"
+        f"本頁票價僅適用於以下方式進出港鐵重鐵網絡*時：\n"
+        f"- 八達通\n"
+        f"- 感應式信用卡／扣賬卡（Visa、Mastercard、銀聯，銀聯扣賬卡除外）\n"
+        f"- 二維碼（AlipayHK 易乘碼、MTR Mobile 車票二維碼、雲閃付港鐵乘車碼、騰訊乘車碼）\n"
+        f"- 全國交通一卡通（China T-Union Card）\n\n"
+        f"除八達通外，上述支付方式均僅適用於港鐵重鐵網絡*。\n\n"
+        f"【通用規則】\n"
+        f"- 以感應式卡、二維碼或交通聯合卡支付的車費，均按成人八達通票價計算，不適用任何小童、學生、長者或特惠票價。\n"
+        f"- 政府公共交通費用補貼計劃及其他港鐵車費優惠不適用。\n"
+        f"- 經尖沙咀站／尖東站轉乘視為兩個獨立車程並分開收費。\n"
+        f"- 二維碼乘車需入閘前預先選定票種及等級，入閘後不可更改。\n\n"
+        f"【匯率參考】\n"
+        f"- 港幣兌人民幣匯率：{hkd_to_rmb}\n"
+        f"- 人民幣兌港幣匯率：{rmb_to_hkd}\n"
+        f"- 資料獲取時間：{fetch_time}\n"
+        f"匯率由八達通卡有限公司網頁獲取，僅供參考，實際以讀寫器所存匯率為準。\n\n"
+        f"【全國交通一卡通特別提示】\n"
+        f"- 港鐵不提供人民幣增值服務，請向發卡機構查詢。\n"
+        f"- 入港前需確保卡內餘額不少於人民幣50元，最高儲值額為人民幣1,000元。\n\n"
+        f"*不適用於機場快綫、輕鐵、港鐵巴士、港鐵接駁巴士及東鐵綫頭等。\n"
+        f"備註：使用感應式信用卡／扣賬卡乘搭港鐵時，系統會於每日營運結束後統一結算當日乘車總額。銀行賬單上一般只會顯示每日或多日累計的總車費金額。"
+    )
+
+def get_common_notice_en(hkd_to_rmb, rmb_to_hkd, fetch_time):
+    return (
+        f"[Fare Applicability and Payment Methods]\n"
+        f"The fares shown on this page apply only when using the following payment methods on the MTR heavy rail network*:\n"
+        f"- Octopus\n"
+        f"- Contactless credit/debit cards (Visa, Mastercard, UnionPay; UnionPay debit cards are not accepted)\n"
+        f"- QR codes (AlipayHK EasyGo, MTR Mobile QR Code Ticket, UnionPay MTR Transit QR Code, Tencent Transit QR Code)\n"
+        f"- China T-Union Card\n\n"
+        f"Except for Octopus, the above payment methods are only available for the MTR heavy rail network*.\n\n"
+        f"[General Rules]\n"
+        f"- Fares paid with contactless cards, QR codes or China T-Union Cards are charged at the Adult Octopus fare; concessionary fares do not apply.\n"
+        f"- The Public Transport Fare Subsidy Scheme and other MTR fare promotions are not applicable.\n"
+        f"- MTR rides which interchange at Tsim Sha Tsui / East Tsim Sha Tsui station will be considered as two separate single journeys.\n"
+        f"- For QR code rides, passenger type and class must be selected before entry and cannot be changed after entry.\n\n"
+        f"[Exchange Rate Reference]\n"
+        f"- HKD to RMB exchange rate: {hkd_to_rmb}\n"
+        f"- RMB to HKD exchange rate: {rmb_to_hkd}\n"
+        f"- Data retrieved at: {fetch_time}\n"
+        f"Rates are obtained from the Octopus Cards Limited website for reference only. The actual rate is determined by the rate stored in the Octopus reader at the time of transaction.\n\n"
+        f"[China T-Union Card Special Notes]\n"
+        f"- RMB top-up service is not available on MTR. Please contact the card issuer for enquiries.\n"
+        f"- Before arriving in Hong Kong, passengers should ensure the card has a balance of at least RMB50, with a maximum stored value of RMB1,000.\n\n"
+        f"*Not available at Airport Express, Light Rail, MTR Bus, MTR Feeder Bus and East Rail Line First Class.\n"
+        f"Note: When using contactless credit/debit cards for MTR rides, the system will consolidate all rides and settle the total daily fare after end-of-service. Your bank statement will typically show one aggregated transaction per day or multiple days."
+    )
+
+
+
+# # 如果直接调用这个文件，就会执行下面的代码
+# if __name__ == "__main__":
+
+#     # 创建命令行解析器
+#     parser = argparse.ArgumentParser(description='查询车票价格')
+
+#     # 添加命令行参数
+#     parser.add_argument('from_station', help='出发站')
+#     parser.add_argument('to_station', help='到达站')
+
+#     # 解析命令行参数
+#     args = parser.parse_args()
+
+#     # 获取出发站和到达站
+#     from_station_name = args.from_station
+#     to_station_name = args.to_station
+
+
+
+#     # 更新车站信息
+#     mtr_stations = get_mtr_stations()
+#     with open("mtr_stations.json", "w", encoding="utf-8") as f:
+#         json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
+
+#     url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
+#     print(f'Updating mtr_lines_and_stations from {url}')
+#     #下载文件
+#     r = requests.get(url)
+#     #将二进制文件转为字符串
+#     data = str(r.content, encoding="utf-8")
+#     #将字符串转为文件对象
+#     with open('mtr_lines_and_stations.csv', 'w', encoding='utf-8') as f:
+#         f.write(data)
+#     json_file = 'mtr_lines_and_stations.json'
+#     convert_to_json(json_file)
+#     with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
+#         line_info = json.load(f)
+#     # 查询车票价格
+#     output_text = query_ticket_price(from_station_name, to_station_name)
+#     print(output_text)
+
+#     #print(get_station_abbreviation("上水"))
+#     #print(get_realtime_arrivals("EAL", "SHS", "TC"))
+
+
 if __name__ == "__main__":
-
-    # 创建命令行解析器
     parser = argparse.ArgumentParser(description='查询车票价格')
-
-    # 添加命令行参数
     parser.add_argument('from_station', help='出发站')
     parser.add_argument('to_station', help='到达站')
-
-    # 解析命令行参数
     args = parser.parse_args()
 
-    # 获取出发站和到达站
-    from_station_name = args.from_station
-    to_station_name = args.to_station
+    # 强制更新
+    update_mtr_stations()
+    update_mtr_line_info()
 
-
-
-    # 更新车站信息
-    mtr_stations = get_mtr_stations()
-    with open("mtr_stations.json", "w", encoding="utf-8") as f:
-        json.dump(mtr_stations, f, ensure_ascii=False, indent=4)
-
-    url = 'https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv'
-    print(f'Updating mtr_lines_and_stations from {url}')
-    #下载文件
-    r = requests.get(url)
-    #将二进制文件转为字符串
-    data = str(r.content, encoding="utf-8")
-    #将字符串转为文件对象
-    with open('mtr_lines_and_stations.csv', 'w', encoding='utf-8') as f:
-        f.write(data)
-    json_file = 'mtr_lines_and_stations.json'
-    convert_to_json(json_file)
-    with open("mtr_lines_and_stations.json", "r", encoding="utf-8") as f:
-        line_info = json.load(f)
-    # 查询车票价格
-    output_text = query_ticket_price(from_station_name, to_station_name)
-    print(output_text)
-
-    #print(get_station_abbreviation("上水"))
-    #print(get_realtime_arrivals("EAL", "SHS", "TC"))
+    output = query_ticket_price(args.from_station, args.to_station)
+    print(output)
