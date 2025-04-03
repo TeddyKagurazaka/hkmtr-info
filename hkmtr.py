@@ -254,7 +254,7 @@ line_dict = {
 }
 
 def query_specific_line(src,dst,time,lang):
-    result = src.split(" ", 1)[0]
+    result = src
     for idx,line in enumerate(time['links']):
         if lang == "C":
             result += f' > {line_dict[line][0]}'
@@ -263,7 +263,7 @@ def query_specific_line(src,dst,time,lang):
             
         if time['interchange'] and idx < len(time['interchange']):
             result += f' > {query_station_info(time["interchange"][idx],lang)}'
-    result += f' > {dst.split(" ", 1)[0]}\n'
+    result += f' > {dst}\n'
     return result
 
 
@@ -322,7 +322,7 @@ def get_realtime_arrivals(line, station,station_name,line_name, lang="EN"):
                             if destination_name:
                                 destination = destination_name[0][1]
                             platform = arrival["plat"]
-                            result += f"{time},At Platform:{platform}，To:{destination}\n"
+                            result += f"{time},At Platform:{platform},To:{destination}\n"
 
                 else:
                     if lang.upper() == "TC":
@@ -632,15 +632,16 @@ def print_first_last_train_info(station_info,from_station_id, to_station_id, lan
             output_text += f"由 （{from_station_info_display}） 去往 （{to_station_info_display}） 嘅車票價格：\n"
             title_msg += f"由 （{from_station_info}） 去往 （{to_station_info}） 嘅車票價格"
             # output_text += '\n請留意，該車票價格僅計算使用八達通拍卡或使用乘車二維碼入閘嘅價格，唔包括購買單程票嘅價格。\n\n'
-            output_text += f"【首末班車】\n" 
+            output_text += f"【首尾班車】\n" 
 
             output_text += f'(首：{station_info["firstTrainTime"]["time"]})'
             # output_text += '路綫: '
             output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"],lang)
-            output_text += f'(末：{station_info["lastTrainTime"]["time"]})'
+            output_text += f'(尾：{station_info["lastTrainTime"]["time"]})'
             # output_text += '路綫: '
             output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"],lang)
             #output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
+            output_text += f'請根據所示路徑搭乘首/尾班車，'
             output_text += f'車站開放時間：{station_info["stationOpeningHours"]}\n'
             #output_text += "乘搭首/尾班車的乘客必須使用本頁列明的轉乘路綫，因有關的轉乘路綫可能與行程指南所建議的路綫不同。\n\n"
 
@@ -657,6 +658,7 @@ def print_first_last_train_info(station_info,from_station_id, to_station_id, lan
         output_text += f'(Last: {station_info["lastTrainTime"]["time"]})'
         #output_text += 'Route: '
         output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"],lang)
+        output_text += f'Please follow the route for the first and last trains.'
         #output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
         output_text += f'Station Opening Hours: {station_info["stationOpeningHours"]}\n'
         #output_text += "Passengers taking the first/last train must use the transfer routes listed on this page, as the recommended routes in the travel guide may differ.\n\n"
@@ -816,7 +818,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='查询车票价格')
     parser.add_argument('from_station', help='出发站')
     parser.add_argument('to_station', help='到达站')
-    parser.add_argument('lang', help='语言(E/C)',default='C')
+    parser.add_argument('lang', help='语言(E/C)',default='C',nargs='?')
     args = parser.parse_args()
 
     # 强制更新

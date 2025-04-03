@@ -1,10 +1,10 @@
 # fufubot_hkmtr_info
 
-可以使用```python hkmtr.py 上水 旺角 C```查询 从旺角到上水的推荐路线 实时发车时间 首尾班车推荐路线 车站开放时间 车票价格 行车时间
+可以使用```python hkmtr.py 上水 旺角```查询 从旺角到上水的推荐路线 实时发车时间 首尾班车推荐路线 车站开放时间 车票价格 行车时间
 
 出发和到达站支持使用上水/SHS/sheungshui的格式填写名称 填写简体会自动转换为繁体
 
-*Replace 'C' with 'E' for English output, default is Cantonese.*
+*Add 'E' as last parameter for English output, default is Cantonese.*
 
 Q:點解文字系廣東話？
 
@@ -14,34 +14,39 @@ A:嚟香港點解唔用廣東話？
 
 ```txt
 [Hong Kong MTR車票價格]
-由 （落馬洲 [LMC]） 去往 （旺角 [MOK]） 嘅車票價格：
-【首末班車】
-(首：06:38)落馬洲 > 東鐵綫 > 九龍塘 > 觀塘綫 > 旺角
-(末：22:55)落馬洲 > 東鐵綫 > 九龍塘 > 觀塘綫 > 旺角
-車站開放時間：06:28-23:05
+由 （上水 [SHS]） 去往 （旺角 [MOK]） 嘅車票價格：
+【首尾班車】
+(首：05:40)上水 > 東鐵綫 > 九龍塘 > 觀塘綫 > 旺角
+(尾：00:04)上水 > 東鐵綫 > 九龍塘 > 觀塘綫 > 旺角
+請根據所示路徑搭乘首/尾班車，車站開放時間：05:30-01:17
 
 【發車時間】
-落馬洲，東鐵綫，下行:
-17:20:38，于 1 月台，開往：金鐘
-17:29:38，于 2 月台，開往：金鐘
-17:39:38，于 1 月台，開往：金鐘
-17:45:38，于 2 月台，開往：金鐘
+上水，東鐵綫，上行:
+17:51:39，于 1 月台，開往：羅湖
+17:53:39，于 1 月台，開往：羅湖
+17:55:39，于 1 月台，開往：落馬洲
+17:59:39，于 1 月台，開往：羅湖
+上水，東鐵綫，下行:
+17:52:39，于 2 月台，開往：金鐘
+17:55:39，于 2 月台，開往：金鐘
+17:58:39，于 2 月台，開往：金鐘
+18:01:39，于 2 月台，開往：金鐘
 
 【路線信息】
-普通等 最快路綫（49分鐘）
-成人票價：HK$ 45.4 (CN¥48.04) 學生票價：HK$ 43.1
-- 在落馬洲1號或2號號月台往金鐘方向乘車
+普通等 最快路綫（39分鐘）
+成人票價：HK$ 13.6 (CN¥14.39) 學生票價：HK$ 7.1
+- 在上水2號月台往金鐘方向乘車
 - 在九龍塘2號月台往黃埔方向轉車
 
-普通等 路綫二（57分鐘）
-成人票價：HK$ 45.4 (CN¥48.04) 學生票價：HK$ 43.1
-- 在落馬洲1號或2號號月台往金鐘方向乘車
+普通等 路綫二（47分鐘）
+成人票價：HK$ 13.6 (CN¥14.39) 學生票價：HK$ 7.1
+- 在上水2號月台往金鐘方向乘車
 - 在紅磡2號月台往烏溪沙方向轉車
 - 在何文田1號月台往調景嶺方向轉車
 
-普通等 路綫三（61分鐘）
-成人票價：HK$ 45.4 (CN¥48.04) 學生票價：HK$ 43.1
-- 在落馬洲1號或2號號月台往金鐘方向乘車
+普通等 路綫三（51分鐘）
+成人票價：HK$ 13.6 (CN¥14.39) 學生票價：HK$ 7.1
+- 在上水2號月台往金鐘方向乘車
 - 在大圍3號月台往屯門方向轉車
 - 在鑽石山2號月台往黃埔方向轉車
 
@@ -55,34 +60,39 @@ For English output, add **lang="E"** as parameter when calling query_ticket_pric
 
 ```txt
 [Hong Kong MTR Ticket Prices]
-Ticket prices from (Lok Ma Chau [LMC]) to (Mong Kok [MOK]):
+Ticket prices from (Sheung Shui [SHS]) to (Mong Kok [MOK]):
 [First and Last Train Info]
-(First: 06:38)Lok > East Rail Line > Kowloon Tong > Kwun Tong Line > Mong
-(Last: 22:55)Lok > East Rail Line > Kowloon Tong > Kwun Tong Line > Mong
-Station Opening Hours: 06:28-23:05
+(First: 05:40)Sheung Shui > East Rail Line > Kowloon Tong > Kwun Tong Line > Mong Kok
+(Last: 00:04)Sheung Shui > East Rail Line > Kowloon Tong > Kwun Tong Line > Mong Kok
+Please follow the route for the first and last trains.Station Opening Hours: 05:30-01:17
 
 [Departure Time]
-Lok Ma Chau,East Rail Line,Down:
-17:20:31,At Platform:1,To:Admiralty
-17:29:31,At Platform:2,To:Admiralty
-17:39:31,At Platform:1,To:Admiralty
-17:45:31,At Platform:2,To:Admiralty
+Sheung Shui,East Rail Line,Up:
+17:53:03,At Platform:1,To:Lo Wu
+17:55:03,At Platform:1,To:Lok Ma Chau
+18:00:03,At Platform:1,To:Lo Wu
+18:02:03,At Platform:1,To:Lo Wu
+Sheung Shui,East Rail Line,Down:
+17:53:03,At Platform:2,To:Admiralty
+17:56:03,At Platform:2,To:Admiralty
+17:58:03,At Platform:2,To:Admiralty
+18:02:03,At Platform:2,To:Admiralty
 
 [Route Information]
-Standard Route 1(49 minutes)
-Adult Price: HK$ 45.4 (Approx. CN¥48.04) Student Price: HK$ 43.1
-- Board at Lok Ma Chau Platform 1 or 2 towards Admiralty
+Standard Route 1(39 minutes)
+Adult Price: HK$ 13.6 (Approx. CN¥14.39) Student Price: HK$ 7.1
+- Board at Sheung Shui Platform 2 towards Admiralty
 - Interchange at Kowloon Tong Platform 2 towards Whampoa
 
-Standard Route 2(57 minutes)
-Adult Price: HK$ 45.4 (Approx. CN¥48.04) Student Price: HK$ 43.1
-- Board at Lok Ma Chau Platform 1 or 2 towards Admiralty
+Standard Route 2(47 minutes)
+Adult Price: HK$ 13.6 (Approx. CN¥14.39) Student Price: HK$ 7.1
+- Board at Sheung Shui Platform 2 towards Admiralty
 - Interchange at Hung Hom Platform 2 towards Wu Kai Sha
 - Interchange at Ho Man Tin Platform 1 towards Tiu Keng Leng
 
-Standard Route 3(61 minutes)
-Adult Price: HK$ 45.4 (Approx. CN¥48.04) Student Price: HK$ 43.1
-- Board at Lok Ma Chau Platform 1 or 2 towards Admiralty
+Standard Route 3(51 minutes)
+Adult Price: HK$ 13.6 (Approx. CN¥14.39) Student Price: HK$ 7.1
+- Board at Sheung Shui Platform 2 towards Admiralty
 - Interchange at Tai Wai Platform 3 towards Tuen Mun
 - Interchange at Diamond Hill Platform 2 towards Whampoa
 
