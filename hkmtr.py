@@ -16,6 +16,7 @@ requests = safe_import('requests')
 opencc = safe_import('opencc', 'opencc-python-reimplemented')
 pd = safe_import('pandas')
 bs4 = safe_import('bs4', 'beautifulsoup4')
+denv = safe_import('dotenv')
 from bs4 import BeautifulSoup
 
 import json
@@ -152,10 +153,10 @@ def get_station_id(station_name):
 
     return None
 
-
 def get_ticket_price(from_station_id, to_station_id, lang="C"):
     if lang not in ["C", "E"]:
         raise ValueError("Invalid lang parameter. Only 'C' (Chinese) or 'E' (English) are allowed.")
+    
     url = f"https://www.mtr.com.hk/share/customer/jp/api/HRRoutes/?o={from_station_id}&d={to_station_id}&lang={lang}"
     print(url)
     response = requests.get(url,proxies=proxies,timeout=10)
@@ -206,22 +207,25 @@ def convert_to_traditional_chinese(station_name):
     return cc.convert(station_name)
 
 
-def format_station_info(station_info):
+def format_station_info(station_info,lang):
     line = station_info["LINE"]
     station_name_tc = station_info["STATION_NAME_TC"]
     station_name_en = station_info["STATION_NAME_EN"]
-    formatted_info = f"[{line}] {station_name_tc} ({station_name_en})"
+    if lang == "C":
+        formatted_info = f"{station_name_tc}"
+    elif lang == "E":
+        formatted_info = f"{station_name_en}"
 
     return formatted_info
 
 
-def query_station_info(station_id):
+def query_station_info(station_id,lang):
     station_info = get_station_info(station_id)
 
     if station_info is None:
         raise ApiException("搵唔到指定嘅車站，請檢查輸入嘅車站 ID 是否正確。")
     else:
-        formatted_info = format_station_info(station_info)
+        formatted_info = format_station_info(station_info,lang)
         return formatted_info
 
 
@@ -237,25 +241,29 @@ def get_station_info(station_id):
 
 
 line_dict = {
-    'AEL': "機場快綫 (Airport Express)",
-    'TCL': "東涌綫 (Tung Chung Line)",
-    'DRL': "迪士尼綫 (Disneyland Resort Line)",
-    'EAL': "東鐵綫 (East Rail Line)",
-    'ISL': "港島綫 (Island Line)",
-    'KTL': "觀塘綫 (Kwun Tong Line)",
-    'SIL': "南港島綫 (South Island Line)",
-    'TKL': "將軍澳綫 (Tseung Kwan O Line)",
-    'TWL': "荃灣綫 (Tseun Wan Line)",
-    'TML': "屯馬綫 (Tuen Ma Line)"
+    'AEL': ["機場快綫","Airport Express"],
+    'TCL': ["東涌綫","Tung Chung Line"],
+    'DRL': ["迪士尼綫","Disneyland Resort Line"],
+    'EAL': ["東鐵綫","East Rail Line"],
+    'ISL': ["港島綫","Island Line"],
+    'KTL': ["觀塘綫","Kwun Tong Line"],
+    'SIL': ["南港島綫","South Island Line"],
+    'TKL': ["將軍澳綫","Tseung Kwan O Line"],
+    'TWL': ["荃灣綫","Tseun Wan Line"],
+    'TML': ["屯馬綫","Tuen Ma Line"]
 }
 
-def query_specific_line(src,dst,time):
-    result = src.split(" ", 1)[1]
+def query_specific_line(src,dst,time,lang):
+    result = src
     for idx,line in enumerate(time['links']):
-        result += f' > {line_dict[line]}'
+        if lang == "C":
+            result += f' > {line_dict[line][0]}'
+        elif lang == "E":
+            result += f' > {line_dict[line][1]}'
+            
         if time['interchange'] and idx < len(time['interchange']):
-            result += f' > {query_station_info(time["interchange"][idx]).split(" ", 1)[1]}'
-    result += f' > {dst.split(" ", 1)[1]}\n'
+            result += f' > {query_station_info(time["interchange"][idx],lang)}'
+    result += f' > {dst}\n'
     return result
 
 
@@ -280,7 +288,7 @@ def get_station_names(abbreviation, lang="EN"):
 
 
 
-def get_realtime_arrivals(line, station, lang="EN"):
+def get_realtime_arrivals(line, station,station_name,line_name, lang="EN"):
     url = f"https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line={line}&sta={station}&lang={lang}"
     print(url)
     response = requests.get(url,proxies=proxies,timeout=10)
@@ -294,25 +302,27 @@ def get_realtime_arrivals(line, station, lang="EN"):
                 arrivals_up = data["data"][f"{line}-{station}"]["UP"]
                 if arrivals_up:
                     if lang.upper() == "TC":
-                        result += "實時到站信息：(上行)\n"
+                        result += f"{station_name}，{line_name}，上行:\n"
                         for arrival in arrivals_up:
-                            time = arrival["time"]
+                            time = arrival["time"][arrival["time"].find(' ')+1:]
+                            # time = arrival["time"]
                             destination = arrival["dest"]
                             destination_name = get_station_names(destination, lang)
                             if destination_name:
                                 destination = destination_name[0][1]
                             platform = arrival["plat"]
-                            result += f"時間：{time}，目的地：{destination}，站台號：{platform}\n"
+                            result += f"{time}，于 {platform} 月台，開往：{destination}\n"
                     else:
-                        result += "Real-time Arrivals (Up):\n"
+                        result += f"{station_name},{line_name},Up:\n"
                         for arrival in arrivals_up:
-                            time = arrival["time"]
+                            time = arrival["time"][arrival["time"].find(' ')+1:]
+                            #time = arrival["time"]
                             destination = arrival["dest"]
                             destination_name = get_station_names(destination, lang)
                             if destination_name:
                                 destination = destination_name[0][1]
                             platform = arrival["plat"]
-                            result += f"Time: {time}, Destination: {destination}, Platform: {platform}\n"
+                            result += f"{time},At Platform:{platform},To:{destination}\n"
 
                 else:
                     if lang.upper() == "TC":
@@ -324,25 +334,27 @@ def get_realtime_arrivals(line, station, lang="EN"):
                 arrivals_down = data["data"][f"{line}-{station}"]["DOWN"]
                 if arrivals_down:
                     if lang.upper() == "TC":
-                        result += "實時到站信息：(下行)\n"
+                        result += f"{station_name}，{line_name}，下行:\n"
                         for arrival in arrivals_down:
-                            time = arrival["time"]
+                            time = arrival["time"][arrival["time"].find(' ')+1:]
                             destination = arrival["dest"]
                             destination_name = get_station_names(destination, lang)
                             if destination_name:
                                 destination = destination_name[0][1]
                             platform = arrival["plat"]
-                            result += f"時間：{time}，目的地：{destination}，站台號：{platform}\n"
+                            result += f"{time}，于 {platform} 月台，開往：{destination}\n"
+                            #result += f"時間：{time}，目的地：{destination}，站台號：{platform}\n"
                     else:
-                        result += "Real-time Arrivals (Down):\n"
+                        result += f"{station_name},{line_name},Down:\n"
                         for arrival in arrivals_down:
-                            time = arrival["time"]
+                            time = arrival["time"][arrival["time"].find(' ')+1:]
                             destination = arrival["dest"]
                             destination_name = get_station_names(destination, lang)
                             if destination_name:
                                 destination = destination_name[0][1]
                             platform = arrival["plat"]
-                            result += f"Time: {time}, Destination: {destination}, Platform: {platform}\n"
+                            result += f"{time},At Platform:{platform},To:{destination}\n"
+                            #result += f"Time: {time}, Destination: {destination}, Platform: {platform}\n"
 
                 else:
                     if lang.upper() == "TC":
@@ -370,7 +382,7 @@ def get_realtime_arrivals(line, station, lang="EN"):
         else:
             return "Error occurred while fetching real-time data."
         
-def format_station_info_with_code(station_info):
+def format_station_info_with_code(station_info,lang):
     line = station_info["LINE"]
     station_name_tc = station_info["STATION_NAME_TC"]
     station_name_en = station_info["STATION_NAME_EN"]
@@ -386,7 +398,11 @@ def format_station_info_with_code(station_info):
     if not station_code:
         station_code = str(station_id)  # 找不到就用ID代替
 
-    formatted_info = f"[{line}] {station_name_tc} ({station_name_en}) [{station_code}]"
+    #formatted_info = f"[{line}] {station_name_tc} ({station_name_en}) [{station_code}]"
+    if(lang == "C"):
+        formatted_info = f"{station_name_tc} [{station_code}]"
+    elif(lang == "E"):
+        formatted_info = f"{station_name_en} [{station_code}]"
     return formatted_info
 
 def query_ticket_price(from_station, to_station, tg_inline_mode=False, lang="C"):
@@ -398,9 +414,6 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
     title_msg = ""
     from_station_id = get_station_id(from_station_name)
     to_station_id = get_station_id(to_station_name)
-    exchange_info = get_exchange_rate_info()  # 获取最新汇率和更新时间
-    hkd_to_rmb = exchange_info["hkd_to_rmb"]
-    rmb_to_hkd = exchange_info["rmb_to_hkd"]
 
     if from_station_id is None or to_station_id is None:
         traditional_from_station_name = convert_to_traditional_chinese(
@@ -433,120 +446,33 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
         elif lang == "E":
             output_text += '[Hong Kong MTR Ticket Prices]\n'
 
-        from_station_info = format_station_info(get_station_info(from_station_id))
+        # 【首末班車】
+        output_text_first_last,title_msg_first_last = print_first_last_train_info(
+            station_info,from_station_id,to_station_id,lang)
+        output_text += output_text_first_last
+        title_msg += title_msg_first_last
 
-        to_station_info = format_station_info(get_station_info(to_station_id))
+        output_text += "\n"
 
-        from_station_info_display = format_station_info_with_code(get_station_info(from_station_id))
-        to_station_info_display = format_station_info_with_code(get_station_info(to_station_id))
+        # 【發車時間】
+        output_text += print_train_arrival_info(
+            from_station_id,lang)
+        
+        output_text += "\n"
 
-        if lang == "C":
-            output_text += f"由 {from_station_info_display} 去 {to_station_info_display} 嘅車票價格：\n"
-            title_msg += f"由 {from_station_info} 去 {to_station_info} 嘅車票價格"
-            # output_text += '\n請留意，該車票價格僅計算使用八達通拍卡或使用乘車二維碼入閘嘅價格，唔包括購買單程票嘅價格。\n\n'
+        # 【路線信息】
+        output_text += print_ticket_prices(
+            ticket_prices,lang
+        )
+        # output_text += "\n"
 
-            output_text += f'首班車時間：{station_info["firstTrainTime"]["time"]}\n'
-            output_text += '首班車路綫: '
-            output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"])
-            output_text += f'末班車時間：{station_info["lastTrainTime"]["time"]}\n'
-            output_text += '尾班車路綫: '
-            output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"])
-            output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
-            output_text += f'車站開放時間：{station_info["stationOpeningHours"]}\n'
-            output_text += "乘搭首/尾班車的乘客必須使用本頁列明的轉乘路綫，因有關的轉乘路綫可能與行程指南所建議的路綫不同。\n\n"
-
-        elif lang == "E":
-            output_text += f"Ticket prices from {from_station_info_display} to {to_station_info_display}:\n"
-            title_msg += f"Ticket prices from {from_station_info} to {to_station_info}"
-            # output_text += '\nPlease note that the ticket prices only apply to Octopus card or QR code entry, and do not include the price of single journey tickets.\n\n'
-            output_text += f'First Train Time: {station_info["firstTrainTime"]["time"]}\n'
-            output_text += 'First Train Route: '
-            output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"])
-            output_text += f'Last Train Time: {station_info["lastTrainTime"]["time"]}\n'
-            output_text += 'Last Train Route: '
-            output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"])
-            output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
-            output_text += f'Station Opening Hours: {station_info["stationOpeningHours"]}\n'
-            output_text += "Passengers taking the first/last train must use the transfer routes listed on this page, as the recommended routes in the travel guide may differ.\n\n"
-
-        departure_station_abbreviations = get_station_abbreviation(from_station_id)
-        if departure_station_abbreviations:
-            if lang == "C":
-                output_text += f"{from_station_info} 嘅實時發車時間：\n"
-            elif lang == "E":
-                output_text += f"Real-time departure times from {from_station_info}:\n"
-
-            for line, abbreviation in departure_station_abbreviations:
-                if lang == "C":
-                    arrivals_lang = "TC"
-                elif lang == "E":
-                    arrivals_lang = "EN"
-                realtime_departure = get_realtime_arrivals(line, abbreviation, arrivals_lang)
-                if realtime_departure:
-                    if lang == "C":
-                        output_text += f"線路：{line_dict[line]}\n"
-                        output_text += f"{realtime_departure}\n\n"
-                    elif lang == "E":
-                        output_text += f"Line: {line_dict[line]}\n"
-                        output_text += f"{realtime_departure}\n\n"
-        else:
-            if lang == "C":
-                output_text += f"無法獲取 {from_station_info} 的實時發車時間。\n\n"
-            elif lang == "E":
-                output_text += f"Unable to retrieve real-time departure times for {from_station_info}.\n\n"
-
-        for price in ticket_prices:
-            route_name = price['routeName']
-            adult_price = price['adultPrice']
-            student_price = price['studentPrice']
-            fareTitle = price['fareTitle']
-            time = price['time']
-            path = price['path']
-
-            if lang == "C":
-                if fareTitle == 'standardClass':
-                    output_text += f"\n車廂類型：普通等\n"
-                elif fareTitle == 'firstClass':
-                    output_text += f"\n車廂類型：头等\n"
-                output_text += f"路線名稱：{route_name}\n"
-                # output_text += f"成人票價：{adult_price}\n"
-                output_text += format_adult_price_zh(adult_price, rmb_to_hkd, fareTitle) + "\n"
-                # output_text += f"學生票價：{student_price}\n"
-                output_text += format_student_price_zh(student_price) + "\n"
-                output_text += f"行車時間：{time}分鐘\n"
-                output_text += f"路線：\n"
-                for segment in path:
-                    link_text = segment.get('linkText')
-                    if link_text is not None:
-                        output_text += f"{link_text}\n"
-            elif lang == "E":
-                if fareTitle == 'standardClass':
-                    output_text += f"\nCar Type: Standard\n"
-                elif fareTitle == 'firstClass':
-                    output_text += f"\nCar Type: First Class\n"
-                output_text += f"Route Name: {route_name}\n"
-                # output_text += f"Adult Price: {adult_price}\n"
-                output_text += format_adult_price_en(adult_price, rmb_to_hkd, fareTitle) + "\n"
-                # output_text += f"Student Price: {student_price}\n"
-                output_text += format_student_price_en(student_price) + "\n"
-                output_text += f"Travel Time: {time} minutes\n"
-                output_text += f"Route:\n"
-                for segment in path:
-                    link_text = segment.get('linkText')
-                    if link_text is not None:
-                        output_text += f"{link_text}\n"
         #插入那堆文案
-        output_text += "\n\n"
-        if lang == "C":
-            output_text += get_common_notice_zh(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
-        elif lang == "E":
-            output_text += get_common_notice_en(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
+        output_text += print_misc_info(lang)
 
         if tg_inline_mode:
             return output_text, title_msg
         else:
             return output_text
-
 
 def fetch_exchange_rate_from_url(url):
     headers = {
@@ -642,7 +568,6 @@ def format_student_price_en(student_price):
         # 如果无法转换为浮动数字，直接返回原始票价（即可能是字符串或奇怪字符）
         return f"Student Price: {student_price}"
 
-
 def get_common_notice_zh(hkd_to_rmb, rmb_to_hkd, fetch_time):
     return (
         f"【票價適用及支付方式】\n"
@@ -695,6 +620,153 @@ def get_common_notice_en(hkd_to_rmb, rmb_to_hkd, fetch_time):
         f"Note: When using contactless credit/debit cards for MTR rides, the system will consolidate all rides and settle the total daily fare after end-of-service. Your bank statement will typically show one aggregated transaction per day or multiple days."
     )
 
+def print_first_last_train_info(station_info,from_station_id, to_station_id, lang):
+    output_text,title_msg = "",""
+
+    from_station_info = format_station_info(get_station_info(from_station_id),lang)
+    to_station_info = format_station_info(get_station_info(to_station_id),lang)
+    from_station_info_display = format_station_info_with_code(get_station_info(from_station_id),lang)
+    to_station_info_display = format_station_info_with_code(get_station_info(to_station_id),lang)
+
+    if lang == "C":
+            output_text += f"由 （{from_station_info_display}） 去往 （{to_station_info_display}） 嘅車票價格：\n"
+            title_msg += f"由 （{from_station_info}） 去往 （{to_station_info}） 嘅車票價格"
+            # output_text += '\n請留意，該車票價格僅計算使用八達通拍卡或使用乘車二維碼入閘嘅價格，唔包括購買單程票嘅價格。\n\n'
+            output_text += f"【首尾班車】\n" 
+
+            output_text += f'(首：{station_info["firstTrainTime"]["time"]})'
+            # output_text += '路綫: '
+            output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"],lang)
+            output_text += f'(尾：{station_info["lastTrainTime"]["time"]})'
+            # output_text += '路綫: '
+            output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"],lang)
+            #output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
+            output_text += f'請根據所示路徑搭乘首/尾班車，'
+            output_text += f'車站開放時間：{station_info["stationOpeningHours"]}\n'
+            #output_text += "乘搭首/尾班車的乘客必須使用本頁列明的轉乘路綫，因有關的轉乘路綫可能與行程指南所建議的路綫不同。\n\n"
+
+    elif lang == "E":
+        output_text += f"Ticket prices from ({from_station_info_display}) to ({to_station_info_display}):\n"
+        title_msg += f"Ticket prices from ({from_station_info}) to  ({to_station_info})"
+        # output_text += '\nPlease note that the ticket prices only apply to Octopus card or QR code entry, and do not include the price of single journey tickets.\n\n'
+        
+        output_text += f"[First and Last Train Info]\n"
+
+        output_text += f'(First: {station_info["firstTrainTime"]["time"]})'
+        #output_text += 'Route: '
+        output_text += query_specific_line(from_station_info, to_station_info, station_info["firstTrainTime"],lang)
+        output_text += f'(Last: {station_info["lastTrainTime"]["time"]})'
+        #output_text += 'Route: '
+        output_text += query_specific_line(from_station_info, to_station_info, station_info["lastTrainTime"],lang)
+        output_text += f'Please follow the route for the first and last trains.'
+        #output_text += f'{station_info["firstLastTrainRemark"].replace("<br /><br />","")}\n'
+        output_text += f'Station Opening Hours: {station_info["stationOpeningHours"]}\n'
+        #output_text += "Passengers taking the first/last train must use the transfer routes listed on this page, as the recommended routes in the travel guide may differ.\n\n"
+
+    return output_text,title_msg
+
+def print_train_arrival_info(from_station_id,lang):
+    output_text = ""
+
+    departure_station_abbreviations = get_station_abbreviation(from_station_id)
+    from_station_info = format_station_info(get_station_info(from_station_id),lang)
+
+    if departure_station_abbreviations:
+        if lang == "C":
+            output_text += f"【發車時間】\n"
+        elif lang == "E":
+            output_text += f"[Departure Time]\n"
+
+        for line, abbreviation in departure_station_abbreviations:
+            if lang == "C":
+                arrivals_lang = "TC"
+                line_name = line_dict[line][0]
+            elif lang == "E":
+                arrivals_lang = "EN"
+                line_name = line_dict[line][1]
+
+            realtime_departure = get_realtime_arrivals(line, abbreviation, from_station_info, line_name, arrivals_lang)
+
+            if realtime_departure:
+                output_text += f"{realtime_departure}\n"
+    else:
+        if lang == "C":
+            output_text += f"無法獲取 {from_station_info} 的實時發車時間。\n\n"
+        elif lang == "E":
+            output_text += f"Unable to retrieve real-time departure times for {from_station_info}.\n\n"
+
+    return output_text
+
+def print_ticket_prices(ticket_prices,lang):
+    output_text = ""
+
+    exchange_info = get_exchange_rate_info()  # 获取最新汇率和更新时间
+    rmb_to_hkd = exchange_info["rmb_to_hkd"]
+
+    if lang == "C":
+        output_text += "【路線信息】\n"
+    elif lang == "E":
+        output_text += "[Route Information]\n"
+    
+    for price in ticket_prices:
+        route_name = price['routeName']
+        adult_price = price['adultPrice']
+        student_price = price['studentPrice']
+        fareTitle = price['fareTitle']
+        time = price['time']
+        path = price['path']
+
+        if lang == "C":
+            if fareTitle == 'standardClass':
+                output_text += f"普通等"
+            elif fareTitle == 'firstClass':
+                output_text += f"头等"
+            output_text += f" {route_name}（{time}分鐘）\n"
+            # output_text += f"成人票價：{adult_price}\n"
+            output_text += "" + format_adult_price_zh(adult_price, rmb_to_hkd, fareTitle) + " "
+            # output_text += f"學生票價：{student_price}\n"
+            output_text += "" + format_student_price_zh(student_price) + "\n"
+            # output_text += f"行車時間：{time}分鐘\n"
+            # output_text += f"路線：\n"
+            for segment in path:
+                link_text = segment.get('linkText')
+                if link_text is not None:
+                    output_text += f"- {link_text}\n"
+        elif lang == "E":
+            if fareTitle == 'standardClass':
+                output_text += f"Standard"
+            elif fareTitle == 'firstClass':
+                output_text += f"First Class"
+            output_text += f" {route_name}({time} minutes)\n"
+            # output_text += f"Adult Price: {adult_price}\n"
+            output_text += "" + format_adult_price_en(adult_price, rmb_to_hkd, fareTitle) + " "
+            # output_text += f"Student Price: {student_price}\n"
+            output_text += "" + format_student_price_en(student_price) + "\n"
+            #output_text += f"Travel Time: {time} minutes\n"
+            # output_text += f"Route:\n"
+            for segment in path:
+                link_text = segment.get('linkText')
+                if link_text is not None:
+                    output_text += f"- {link_text}\n"
+        output_text += "\n"
+
+    return output_text
+
+def print_misc_info(lang):
+    output_text = ""
+
+    exchange_info = get_exchange_rate_info()  # 获取最新汇率和更新时间
+    rmb_to_hkd = exchange_info["rmb_to_hkd"]
+    hkd_to_rmb = exchange_info["hkd_to_rmb"]
+
+    if lang == "C":
+        output_text += f"【匯率參考】\n港幣兌人民幣: {hkd_to_rmb}\n人民幣兌港幣: {rmb_to_hkd}\n更新時間:" + exchange_info["fetch_time"]
+        # output_text += get_common_notice_zh(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
+    elif lang == "E":
+        output_text += f"[Exchange Rate]\nHKD->CNY: {hkd_to_rmb}\nCNY->HKD: {rmb_to_hkd}\nLast Update:" + exchange_info["fetch_time"]
+        # output_text += get_common_notice_en(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
+
+    return output_text
 
 
 # # 如果直接调用这个文件，就会执行下面的代码
@@ -746,11 +818,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='查询车票价格')
     parser.add_argument('from_station', help='出发站')
     parser.add_argument('to_station', help='到达站')
+    parser.add_argument('lang', help='语言(E/C)',default='C',nargs='?')
     args = parser.parse_args()
 
     # 强制更新
     update_mtr_stations()
     update_mtr_line_info()
 
-    output = query_ticket_price(args.from_station, args.to_station, lang="E")
+    output = query_ticket_price(args.from_station, args.to_station,tg_inline_mode=False,lang=args.lang)
     print(output)
