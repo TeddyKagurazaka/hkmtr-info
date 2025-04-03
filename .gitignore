@@ -4,3 +4,4 @@ mtr_stations.json
 octopus_exchange_rate.json
 __pycache__
 .env
+.DS_Store
