@@ -449,20 +449,47 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
         # 【打风】（以下是sample）
         # [Hong Kong MTR車票價格]
         #
-        # 【飓风警告】
-        # 十號風球，露天段列車及輕鐵服務已經暫停
+        # 【飓风】十號風球，露天段列車及輕鐵服務已經暫停
+        # 【延長服務】機場快綫加開班次
+        #  。。。。。。。。尾班車於凌晨12時48分開出。
         #
         # 由 （羅湖 [LOW]） 去往 （旺角 [MOK]） 嘅車票價格：
         typhoon_data = get_typhoon_info()
         if typhoon_data:
             if lang == "C":
-                title_msg += "【飓风】"
-                output_text += "\n【飓风警告】\n"
-                output_text += typhoon_data[0] + "\n\n"
+                # output_text += "\n【特别車務狀況】\n"
+                for info in typhoon_data:
+                    if info[0] == "Typhoon":
+                        output_text += "【飓风】"
+                        output_text += info[1]+"\n"
+                        # 这个要对AlertContent的HTML Table解析，等鸡哥来
+                    elif info[0] == "ServiceExtend":
+                        output_text += "【延長服務】"
+                        output_text += info[1]+"\n"
+                        output_text += info[3].replace("<p>","").replace("</p>","")+"\n"
+                    else:
+                        output_text += "【通知】"
+                        output_text += info[1]+"\n"
+                        output_text += info[3].replace("<p>","").replace("</p>","")+"\n"
+
+                    output_text += "\n"
             elif lang == "E":
-                title_msg += "[Typhoon]"
-                output_text += "\n[Typhoon Warning]\n"
-                output_text += typhoon_data[1] + "\n\n"
+                # output_text += "\n[Special Arrangement]\n"
+                for info in typhoon_data:
+                    if info[0] == "Typhoon":
+                        output_text += "[Typhoon]"
+                        output_text += info[2]+"\n"
+                    elif info[0] == "ServiceExtend":
+                        output_text += "[Service Extention]"
+                        output_text += info[2] +"\n"
+                        output_text += info[4].replace("<p>","").replace("</p>","")+"\n"
+                    else:
+                        output_text += "[Notice]"
+                        output_text += info[2]
+                        output_text += info[4].replace("<p>","").replace("</p>","")+"\n"
+                        
+                    output_text += "\n"
+
 
         # 【首末班車】
         output_text_first_last,title_msg_first_last = print_first_last_train_info(
@@ -801,7 +828,13 @@ def get_typhoon_info():
     if not typhoon_info:
         return []
     
-    return [typhoon_info[0]['alertTitleTc'],typhoon_info[0]['alertTitle']]
+    service_info = []
+    for info in typhoon_info:
+        service_info.append([info['tsiType']
+            ,info['alertTitleTc'],info['alertTitle']
+            ,info['alertContentTc'],info['alertContent']])
+
+    return service_info
     
 
 
