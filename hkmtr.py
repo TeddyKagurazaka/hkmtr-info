@@ -446,6 +446,24 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
         elif lang == "E":
             output_text += '[Hong Kong MTR Ticket Prices]\n'
 
+        # 【打风】（以下是sample）
+        # [Hong Kong MTR車票價格]
+        #
+        # 【飓风警告】
+        # 十號風球，露天段列車及輕鐵服務已經暫停
+        #
+        # 由 （羅湖 [LOW]） 去往 （旺角 [MOK]） 嘅車票價格：
+        typhoon_data = get_typhoon_info()
+        if typhoon_data:
+            if lang == "C":
+                title_msg += "【飓风】"
+                output_text += "\n【飓风警告】\n"
+                output_text += typhoon_data[0] + "\n\n"
+            elif lang == "E":
+                title_msg += "[Typhoon]"
+                output_text += "\n[Typhoon Warning]\n"
+                output_text += typhoon_data[1] + "\n\n"
+
         # 【首末班車】
         output_text_first_last,title_msg_first_last = print_first_last_train_info(
             station_info,from_station_id,to_station_id,lang)
@@ -704,7 +722,7 @@ def print_ticket_prices(ticket_prices,lang):
     rmb_to_hkd = exchange_info["rmb_to_hkd"]
 
     if lang == "C":
-        output_text += "【路線信息】\n"
+        output_text += "【路綫信息】\n"
     elif lang == "E":
         output_text += "[Route Information]\n"
     
@@ -767,6 +785,24 @@ def print_misc_info(lang):
         # output_text += get_common_notice_en(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
 
     return output_text
+
+def get_typhoon_info():
+    # https://tnews.mtr.com.hk/alert/tsi_simpletxt_title_tc.html?type=typhoon
+    urlTyphoon = f"https://tnews.mtr.com.hk/alert/alert.json"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    response = requests.get(urlTyphoon,headers=headers,proxies=proxies,timeout=10)
+    # print(response.text)
+    # requests.exceptions.JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+    text_without_bom = response.text.encode().decode('utf-8-sig')
+    data = json.loads(text_without_bom)
+    typhoon_info = data['data']
+    if not typhoon_info:
+        return []
+    
+    return [typhoon_info[0]['alertTitleTc'],typhoon_info[0]['alertTitle']]
+    
 
 
 # # 如果直接调用这个文件，就会执行下面的代码
