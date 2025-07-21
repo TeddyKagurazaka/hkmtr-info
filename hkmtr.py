@@ -446,6 +446,51 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
         elif lang == "E":
             output_text += '[Hong Kong MTR Ticket Prices]\n'
 
+        # 【打风】（以下是sample）
+        # [Hong Kong MTR車票價格]
+        #
+        # 【飓风】十號風球，露天段列車及輕鐵服務已經暫停
+        # 【延長服務】機場快綫加開班次
+        #  。。。。。。。。尾班車於凌晨12時48分開出。
+        #
+        # 由 （羅湖 [LOW]） 去往 （旺角 [MOK]） 嘅車票價格：
+        typhoon_data = get_typhoon_info()
+        if typhoon_data:
+            if lang == "C":
+                # output_text += "\n【特别車務狀況】\n"
+                for info in typhoon_data:
+                    if info[0] == "Typhoon":
+                        output_text += "【飓风】"
+                        output_text += info[1]+"\n"
+                        # 这个要对AlertContent的HTML Table解析，等鸡哥来
+                    elif info[0] == "ServiceExtend":
+                        output_text += "【延長服務】"
+                        output_text += info[1]+"\n"
+                        output_text += info[3].replace("<p>","").replace("</p>","")+"\n"
+                    else:
+                        output_text += "【通知】"
+                        output_text += info[1]+"\n"
+                        output_text += info[3].replace("<p>","").replace("</p>","")+"\n"
+
+                    output_text += "\n"
+            elif lang == "E":
+                # output_text += "\n[Special Arrangement]\n"
+                for info in typhoon_data:
+                    if info[0] == "Typhoon":
+                        output_text += "[Typhoon]"
+                        output_text += info[2]+"\n"
+                    elif info[0] == "ServiceExtend":
+                        output_text += "[Service Extention]"
+                        output_text += info[2] +"\n"
+                        output_text += info[4].replace("<p>","").replace("</p>","")+"\n"
+                    else:
+                        output_text += "[Notice]"
+                        output_text += info[2]
+                        output_text += info[4].replace("<p>","").replace("</p>","")+"\n"
+                        
+                    output_text += "\n"
+
+
         # 【首末班車】
         output_text_first_last,title_msg_first_last = print_first_last_train_info(
             station_info,from_station_id,to_station_id,lang)
@@ -704,7 +749,7 @@ def print_ticket_prices(ticket_prices,lang):
     rmb_to_hkd = exchange_info["rmb_to_hkd"]
 
     if lang == "C":
-        output_text += "【路線信息】\n"
+        output_text += "【路綫信息】\n"
     elif lang == "E":
         output_text += "[Route Information]\n"
     
@@ -767,6 +812,30 @@ def print_misc_info(lang):
         # output_text += get_common_notice_en(hkd_to_rmb, rmb_to_hkd, exchange_info["fetch_time"])
 
     return output_text
+
+def get_typhoon_info():
+    # https://tnews.mtr.com.hk/alert/tsi_simpletxt_title_tc.html?type=typhoon
+    urlTyphoon = f"https://tnews.mtr.com.hk/alert/alert.json"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    response = requests.get(urlTyphoon,headers=headers,proxies=proxies,timeout=10)
+    # print(response.text)
+    # requests.exceptions.JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+    text_without_bom = response.text.encode().decode('utf-8-sig')
+    data = json.loads(text_without_bom)
+    typhoon_info = data['data']
+    if not typhoon_info:
+        return []
+    
+    service_info = []
+    for info in typhoon_info:
+        service_info.append([info['tsiType']
+            ,info['alertTitleTc'],info['alertTitle']
+            ,info['alertContentTc'],info['alertContent']])
+
+    return service_info
+    
 
 
 # # 如果直接调用这个文件，就会执行下面的代码
