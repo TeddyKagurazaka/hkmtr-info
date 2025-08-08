@@ -839,12 +839,26 @@ def get_typhoon_info():
     service_info = []
     for info in typhoon_info:
         # alertContent有时候会是html,正好有个现成的BeautifulSoup做解析
-        contentTc = BeautifulSoup(info['alertContentTc'], "html.parser").get_text()
-        contentEn = BeautifulSoup(info['alertContent'], "html.parser").get_text()
+        contentTcParsed = ""
+        contentTc = BeautifulSoup(info['alertContentTc'], "html.parser")
+        if "message-content" in info['alertContentTc']:
+            #如果MTR喜欢贴html,那找到<p id='message-content'>的内容提取出来就行
+            #不然你要是把下面的表格也贴了那就是灾难了.jpg
+            contentTcParsed = contentTc.find("p", {"id":"message-content"}).get_text().strip()
+        else:
+            #有时候MTR喜欢只贴个<p>或者直接不贴，这时候直接提取内容就行
+            contentTcParsed = contentTc.get_text().strip()
 
+        contentEnParsed = ""
+        contentEn = BeautifulSoup(info['alertContent'], "html.parser")
+        if "message-content" in info['alertContent']:
+            contentEnParsed = contentEn.find("p", {"id":"message-content"}).get_text().strip()
+        else:
+            contentEnParsed = contentEn.get_text().strip()
+        
         service_info.append([info['tsiType']
             ,info['alertTitleTc'],info['alertTitle']
-            ,contentTc,contentEn,info['newsType']])
+            ,contentTcParsed,contentEnParsed,info['newsType']])
 
     return service_info
     
