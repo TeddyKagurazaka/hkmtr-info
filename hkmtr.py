@@ -466,12 +466,16 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
                     elif info[0] == "ServiceExtend":
                         output_text += "【延長服務】"
                         output_text += info[1]+"\n"
-                        output_text += info[3].replace("<p>","").replace("</p>","")+"\n"
+                        if info[3] != "":
+                            output_text += info[3]+"\n"
+                    elif info[5] == "LateCert":
+                        #延误通知书不输出
+                        continue
                     else:
                         output_text += "【通知】"
                         output_text += info[1]+"\n"
-                        output_text += info[3].replace("<p>","").replace("</p>","")+"\n"
-
+                        if info[3] != "":
+                            output_text += info[3]+"\n"
                     output_text += "\n"
             elif lang == "E":
                 # output_text += "\n[Special Arrangement]\n"
@@ -482,11 +486,15 @@ def _query_ticket_price_internal(from_station_name, to_station_name, tg_inline_m
                     elif info[0] == "ServiceExtend":
                         output_text += "[Service Extention]"
                         output_text += info[2] +"\n"
-                        output_text += info[4].replace("<p>","").replace("</p>","")+"\n"
+                        if info[4] != "":
+                            output_text += info[4]+"\n"
+                    elif info[5] == "LateCert":
+                        continue
                     else:
                         output_text += "[Notice]"
-                        output_text += info[2]
-                        output_text += info[4].replace("<p>","").replace("</p>","")+"\n"
+                        output_text += info[2] +"\n"
+                        if info[4] != "":
+                            output_text += info[4]+"\n"
                         
                     output_text += "\n"
 
@@ -830,9 +838,13 @@ def get_typhoon_info():
     
     service_info = []
     for info in typhoon_info:
+        # alertContent有时候会是html,正好有个现成的BeautifulSoup做解析
+        contentTc = BeautifulSoup(info['alertContentTc'], "html.parser").get_text()
+        contentEn = BeautifulSoup(info['alertContent'], "html.parser").get_text()
+
         service_info.append([info['tsiType']
             ,info['alertTitleTc'],info['alertTitle']
-            ,info['alertContentTc'],info['alertContent']])
+            ,contentTc,contentEn,info['newsType']])
 
     return service_info
     
