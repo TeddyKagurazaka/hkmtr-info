@@ -838,6 +838,10 @@ def get_typhoon_info():
     
     service_info = []
     for info in typhoon_info:
+        #跳过延误通知书
+        if info['newsType'] == "LateCert":
+            continue
+
         # alertContent有时候会是html,正好有个现成的BeautifulSoup做解析
         contentTcParsed = ""
         contentTc = BeautifulSoup(info['alertContentTc'], "html.parser")
