@@ -842,31 +842,33 @@ def get_typhoon_info():
         if info['newsType'] == "LateCert":
             continue
 
-        # alertContent有时候会是html,正好有个现成的BeautifulSoup做解析
-        contentTcParsed = ""
-        contentTc = BeautifulSoup(info['alertContentTc'], "html.parser")
-        if "message-content" in info['alertContentTc']:
-            #如果MTR喜欢贴html,那找到<p id='message-content'>的内容提取出来就行
-            #不然你要是把下面的表格也贴了那就是灾难了.jpg
-            contentTcParsed = contentTc.find("p", {"id":"message-content"}).get_text().strip()
-        else:
-            #有时候MTR喜欢只贴个<p>或者直接不贴，这时候直接提取内容就行
-            contentTcParsed = contentTc.get_text().strip()
-
-        contentEnParsed = ""
-        contentEn = BeautifulSoup(info['alertContent'], "html.parser")
-        if "message-content" in info['alertContent']:
-            contentEnParsed = contentEn.find("p", {"id":"message-content"}).get_text().strip()
-        else:
-            contentEnParsed = contentEn.get_text().strip()
-        
+        contentTcParsed = parseAlertMessage(info['alertContentTc'])
+        contentEnParsed = parseAlertMessage(info['alertContent'])
         service_info.append([info['tsiType']
             ,info['alertTitleTc'],info['alertTitle']
             ,contentTcParsed,contentEnParsed,info['newsType']])
 
     return service_info
     
+def parseAlertMessage(alertContent: str):
+    outMsg = ""
 
+    # alertContent有时候会是html,正好有个现成的BeautifulSoup做解析
+    if "<p" in alertContent:
+        #如果MTR喜欢贴html,那就作为html解析，找到<p id='message-content'>的内容提取出来就行
+        #不然你要是把下面的表格也贴了那就是灾难了.jpg
+
+        #8.15 <p style="text-align: justify;"> <table style="border-collapse: collapse;
+        #针对MTR连id='message-content'都懒得给了的情况，直接提取<p>
+        contentHTML = BeautifulSoup(alertContent, "html.parser")
+        MsgContent = contentHTML.find_all("p")
+        if MsgContent is not None:
+            for msg in MsgContent:
+                outMsg += msg.get_text().strip() + "\n"
+    else:
+        outMsg = alertContent
+
+    return outMsg.strip()
 
 # # 如果直接调用这个文件，就会执行下面的代码
 # if __name__ == "__main__":
